@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+{% autoescape true %}
+<html>
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <style type="text/css">
+      html { height: 100% }
+      body { height: 100%; margin: 0; padding: 0 }
+      #map-canvas { height: 100% }
+    </style>
+    <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key={{ google_api_key }} &sensor=true"></script>
+   <script type="text/javascript" Language="Javascript">
+   var waypoints = [
+     {% for wp in waypoints %} new google.maps.LatLng({{ wp.lat }}, {{ wp.lon }}){% if not loop.last %}, {% endif %}
+     {% endfor %}];
+   </script>
+
+    <script type="text/javascript" src="js/utils.js"></script>
+
+  </head>
+  <body>
+    <H1> Drone central </H1>
+    <div id="map-canvas" style="width: 80\%; height: 60\%"></div>
+    <div id='map-optionbar-r'>
+    Waypoints<input id="showPath" name="showPath" type="checkbox" value="Show route"
+      onClick="toggleWaypoints();" checked><br>
+  </div>
+    <span style="float:left;">
+      <form enctype="multipart/form-data" action="/upload" method="post" >
+        <input type="file" name="waypoint-file" />
+        <input type="submit" value = "Upload waypoints"/>
+      </form>
+    </span>
+
+    <form action="/delete-waypoints" method="post">
+      <div><input type="submit" value="Delete waypoints"></div>
+    </form>
+
+    <form action="/delete-reports" method="post">
+      <div><input type="submit" value="Delete reports"></div>
+    </form>
+
+    <H3> Send command </H3>
+    <form action="/get-status" method="post">
+      <div><text name="lat" rows="3" cols="60" value="1.0"></text></div>
+      <div><text name="lon" rows="3" cols="60" value="1.0"></text></div>
+      <div><input type="submit" value="Get status"></div>
+    </form>
+    <form action="/add-waypoints" method="post" onClick="addManualWaypoints()">
+      <div><text name="wp_lat" rows="3" cols="60" value="1.0"></text></div>
+      <div><text name="wp_lon" rows="3" cols="60" value="1.0"></text></div>
+      <div><input type="submit" value="Add waypoints"></div>
+    </form>
+
+    <H3> Send report </H3>
+    <form action="/report" method="post">
+      Battery status: <input type="text" name="battery_status" size=3>
+      Turn-rate: <input type="text" name="turn_rate" size=3>
+      Heading: <input type="text" name="heading" size=3>
+      Speed: <input type="text" name="speed" size=3>
+      Lat:  <input type="text" name="lat" size=8>
+      Lon:  <input type="text" name="lon" size=8>
+      Current waypoint: <input type="text" name="current_waypoint" size=8>
+      Autopilot: <input type="text" name="autopilot" size=8>
+      Active: <input type="text" name="active" size=8>
+      <div><input type="submit" value="Report"></div>
+    </form>
+  </body>
+</html>
+{% endautoescape %}

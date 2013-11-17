@@ -5,9 +5,15 @@ api_version: 1
 threadsafe: true
 
 handlers:
+- url: /js
+  static_dir: js
+
 - url: /.*
   script: dronecentral.application
 
 libraries:
 - name: webapp2
+  version: latest
+
+- name: jinja2
   version: latest

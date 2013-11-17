@@ -1,84 +1,21 @@
+import os
 import abc
 import cgi
 import webapp2
+import jinja2
 from google.appengine.api import urlfetch
 from google.appengine.ext import db
 
-DEFAULT_SURVEY_NAME = "ACTIVE SURVEY"
+DEFAULT_SURVEY_NAME = "ACTIVESURVEY"
 
 GCM_SERVER = "https://android.googleapis.com/gcm/send"
-GOOGLE_API_KEY = "AIzaSyBVM4ZyBqaxCdLBb2zjkoJhjn-oLeenuJQ"
+GOOGLE_API_KEY = "AIzaSyBes8BF3izsF6xmMAkqFl5LOFKXOcYcswU"
 REGISTRATION_ID = "Registration Id of the target device"
 
-
-MAIN_PAGE_HTML = """\
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
-    <style type="text/css">
-      html { height: 100% }
-      body { height: 100%; margin: 0; padding: 0 }
-      #map-canvas { height: 100% }
-    </style>
-    <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBes8BF3izsF6xmMAkqFl5LOFKXOcYcswU&sensor=true">
-    </script>
-    <script type="text/javascript">
-      function initialize() {
-        var mapOptions = {
-          center: new google.maps.LatLng(-34.397, 150.644),
-          zoom: 8,
-          mapTypeId: google.maps.MapTypeId.ROADMAP
-        };
-        var map = new google.maps.Map(document.getElementById("map-canvas"),
-            mapOptions);
-      }
-      google.maps.event.addDomListener(window, 'load', initialize);
-    </script>
-  </head>
-  <body>
-    <H1> Drone central </H1>
-    <div id="map-canvas" style="width: 80%; height: 60%"></div>
-
-    <H3> Display waypoints </H3>
-    <span style="float:left;">
-      <form enctype="multipart/form-data" action="/upload" method="post" >
-        <input type="file" name="waypoint-file" />
-        <input type="submit" value = "Upload waypoints"/>
-      </form>
-    </span>
-
-    <form action="/delete-waypoints" method="post">
-      <div><input type="submit" value="Delete waypoints"></div>
-    </form>
-
-
-    <H3> Send command </H3>
-    <form action="/get-status" method="post">
-      <div><text name="lat" rows="3" cols="60" value="1.0"></text></div>
-      <div><text name="lon" rows="3" cols="60" value="1.0"></text></div>
-      <div><input type="submit" value="Get status"></div>
-    </form>
-    <form action="/add-waypoint" method="post">
-      <div><text name="wp_lat" rows="3" cols="60" value="1.0"></text></div>
-      <div><text name="wp_lon" rows="3" cols="60" value="1.0"></text></div>
-      <div><input type="submit" value="Add waypoint"></div>
-    </form>
-
-
-    <H3> Send report </H3>
-    <form action="/report" method="post">
-      Battery status: <input type="text" name="battery_status" size=3>
-      Turn-rate: <input type="text" name="turn_rate" size=3>
-      Heading: <input type="text" name="heading" size=3>
-      Speed: <input type="text" name="speed" size=3>
-      Lat:  <input type="text" name="lat" size=8> 
-      Lon:  <input type="text" name="lon" size=8>
-      <div><input type="submit" value="Report"></div>
-    </form>
-  </body>
-</html>
-"""
+JINJA_ENVIRONMENT = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
+    extensions=['jinja2.ext.autoescape'],
+    autoescape=True)
 
 
 def survey_key(survey_name=DEFAULT_SURVEY_NAME):
@@ -91,6 +28,9 @@ def survey_key(survey_name=DEFAULT_SURVEY_NAME):
 
 class StatusReport(db.Model):
     """Models a drone status report"""
+    active = db.BooleanProperty(indexed=False)
+    autopilot = db.BooleanProperty(indexed=False)
+    current_waypoint = db.IntegerProperty(indexed=False)
     speed = db.FloatProperty(indexed=False)
     heading = db.FloatProperty(indexed=False)
     turn_rate = db.FloatProperty(indexed=False)
@@ -184,11 +124,8 @@ class DeleteWaypoints(webapp2.RequestHandler):
     """Delete all waypoint lists from datastore"""
 
     def post():
-        query = WaypointList.all()
-        waypoint_lists = query.fetch(10)
-
-        for wp_list in waypoint_lists:
-            wp_list.delete()
+        wp_list = WaypointList.get(DEFAULT_SURVEY_NAME)
+        wp_list.delete()
 
 
 class DeleteReports(webapp2.RequestHandler):
@@ -231,6 +168,9 @@ class SetStatus(webapp2.RequestHandler):
         survey_name = self.request.get('survey_name',
                                        DEFAULT_SURVEY_NAME)
         report = StatusReport(parent=survey_key(survey_name))
+        report.autopilot = self.request.get('autopilot').lower() == 'true'
+        report.active = self.request.get('active').lower() == 'true'
+        report.current_waypoint = int(float(self.request.get('cwp')))
         report.speed = float(self.request.get('speed'))
         report.heading = float(self.request.get('heading'))
         report.turn_rate = float(self.request.get('turn_rate'))
@@ -240,22 +180,35 @@ class SetStatus(webapp2.RequestHandler):
         #self.redirect('/?' + urllib.urlencode(query_params))
 
 
+def getWaypoints():
+    """Get waypoints from datastore and return as javascript"""
+    try:
+        wp_list = db.get(DEFAULT_SURVEY_NAME)
+    except:
+        return [db.GeoPt(58.2, 15.1),
+                db.GeoPt(58.22, 15.101)]
+
+    return wp_list
+
+
 class MainPage(webapp2.RequestHandler):
 
     def get(self):
         """Write main page"""
-        survey_name = self.request.get('survey_name',
-                                          DEFAULT_SURVEY_NAME)
-
         report_query = StatusReport.all()
-
-        reports = report_query.fetch(100)
+        reports = report_query.fetch(10)
 
         for report in reports:
             # Add to map
             pass
 
-        self.response.write(MAIN_PAGE_HTML)
+        template_values = {
+            'google_api_key': GOOGLE_API_KEY,
+            'waypoints': getWaypoints()
+        }
+
+        template = JINJA_ENVIRONMENT.get_template('index.html')
+        self.response.write(template.render(template_values))
 
 application = webapp2.WSGIApplication(
     [
@@ -264,7 +217,7 @@ application = webapp2.WSGIApplication(
         ('/report', SetStatus),
         ('/upload', UploadWaypoints),
         ('/delete-waypoints', DeleteWaypoints),
-        ('/add-waypoint', AddWaypoint),
-        ('/plot-waypoints', PlotWaypoints),
-        ('/plot-report', PlotReports)
+        ('/add-waypoints', AddWaypoint),
+        ('/plot-report', PlotReports),
+        ('/delete-reports', DeleteReports)
         ], debug=True)
