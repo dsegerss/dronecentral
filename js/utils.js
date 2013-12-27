@@ -7,6 +7,10 @@ var markers = [];
 var vmarkers = []; 
 var g = google.maps;
 var planPath;
+var report_markers = [];
+
+var infowindow = new google.maps.InfoWindow();
+
 
 var initMap = function(mapHolder) {
     markers = [];
@@ -50,6 +54,16 @@ var initPolyline = function() {
     tmpPolyLine = new g.Polyline(tmpPolyOptions);
     tmpPolyLine.setMap(map);
 };
+
+function initReportMarkers () {
+    for(var i=0;i < reports.length; i++) {
+	var marker = createReportMarker(reports[i]);
+	report_markers.push(marker);
+    }
+    toggleReportMarkers();
+}
+
+
  
 var mapLeftClick = function(event) {
     if (event.latLng) {
@@ -67,7 +81,7 @@ var mapLeftClick = function(event) {
     }
     event = null;
 };
- 
+
 var createMarker = function(point) {
 
     var imageNormal = {
@@ -256,6 +270,7 @@ function initialize() {
     initMap('map-canvas');
     initPolyline();
     initPlanPath();
+    initReportMarkers();
 };
 
   
@@ -280,15 +295,197 @@ function initPlanPath() {
     }
 }
 
+
+function toggleReportMarkers() {
+    var is_checked = document.getElementById("showReports").checked;
+    if (is_checked) {
+	
+	for(var i=0;i < report_markers.length;i++) {
+	    report_markers[i].setMap(map);
+	}	
+	
+    }
+    else {
+	for(var i=0;i < report_markers.length;i++) {
+	    report_markers[i].setMap(null);
+	}	
+    }
+}
+
 function toggleWaypoints() {
     if (planPath == null) {
 	alert("No waypoints defined");
     }
-    var is_checked = document.getElementById("showPath").checked;
-    if (is_checked) {
-	planPath.setMap(map);
-    }
     else {
-	planPath.setMap(null);
+	var is_checked = document.getElementById("showPath").checked;
+	if (is_checked) {
+	    planPath.setMap(map);
+	}
+	else {
+	    planPath.setMap(null);
+	}
     }
 }
+
+function sendMessage(cmd, value) {
+    var msg = cmd + ';' + value;
+    var xmlhttp;
+    xmlhttp=new XMLHttpRequest();
+    xmlhttp.onreadystatechange=function()
+	{
+	    if (xmlhttp.readyState == 3) {
+		document.getElementById("msgRespons").innerHTML =
+		"GCM server processing message";
+	    }
+	    else if (xmlhttp.readyState==4 && xmlhttp.status==200)
+		{
+		    document.getElementById("msgRespons").innerHTML =
+		    xmlhttp.responseText;
+		}
+	    else 
+		{
+		    document.getElementById("msgRespons").innerHTML=
+		    "Failed";
+		}
+	}
+    xmlhttp.open("POST",'/send-message', true);
+    xmlhttp.send(msg);
+}
+
+function getStatus() {
+    sendMessage("GET-STATUS", "");
+}
+
+function setUploadWaypoints() {
+    var val = "";
+    if (markers.length > 0) {
+	var pos = markers[0].getPosition();
+	val += pos.lng() + "," + pos.lat();
+    }
+    for(var i=1;i<markers.length;i++) {
+	var pos = markers[i].getPosition();
+	val += " " + pos.lng() + "," + pos.lat();
+    }
+    document.getElementById("upload-waypoint-list").value = val;
+}
+
+
+function setWaypoints(tag) {
+    var val = "";
+    if (markers.length > 0) {
+	var pos = markers[0].getPosition();
+	val += pos.lng() + "," + pos.lat();
+    }
+    for(var i=1;i<markers.length;i++) {
+	var pos = markers[i].getPosition();
+	val += " " + pos.lng() + "," + pos.lat();
+    }
+    document.getElementById("upload-waypoint-list").value = val;
+}
+
+function validate_in_range(id, min_val, max_val) {
+    var val = document.getElementById(id).value;
+    if (isNaN(val)) {
+	alert(id + 'is not a number');
+    }
+    else {
+	var num = parseFloat(val);
+	if ( ( num < min_val) || (num > max_val) ) {
+	    var msg =id + 'is out of range (' + min +'-' + max+ ')'
+	    alert(msg);
+	}
+	
+    }
+
+    //    else {
+    // 	var num = val;
+    //	if ((num < min) || (num > max)) {
+    //	    alert(id + 'is out of range (' + min +'-' + max+ ')');
+    //	}
+    //}
+}
+
+function setSendWaypoints() {
+    var val = "";
+    if (markers.length > 0) {
+	var pos = markers[0].getPosition();
+	val += pos.lng() + "," + pos.lat();
+    }
+    for(var i=1;i<markers.length;i++) {
+	var pos = markers[i].getPosition();
+	val += " " + pos.lng() + "," + pos.lat();
+    }
+    document.getElementById("send-waypoint-list").value = val;
+}
+
+function sendWaypoints() {
+    
+    var value = "";
+    if (markers.length > 0) {
+	value += pos.lng() + "," + pos.lat();
+    }
+    for(var i=1;i<markers.length;i++) {
+	var pos = markers[i].getPosition();
+	value += " " + pos.lng() + "," + pos.lat();
+    }
+       
+    sendMessage("ADD-WP", value);
+}
+
+function sendDeactivate() {
+    sendMessage("DEACTIVATE", "");
+}
+
+function sendState() {
+    sendMessage("DEACTIVATE", "");
+}
+
+function createReportMarker (report) {
+    var imageNormal = {
+	path: g.SymbolPath.CIRCLE,
+	scale: 5,
+	strokeColor: '#FFD700'
+    };
+
+    var marker = new g.Marker({
+	    position: report.point,
+	    map: map,
+	    icon: imageNormal	    
+	});
+    
+    //    var R = 6371; // earth radius, km
+    //var brng = parseFloat(report.heading) / 180.0 * 3.14;
+    //var d = parseFloat(report.speed) * 5.0;
+    //var lat2 = Math.asin( Math.sin(lat1)*Math.cos(d/R) + 
+    //			  Math.cos(lat1)*Math.sin(d/R)*Math.cos(brng) );
+//var lon2 = lon1 + Math.atan2(Math.sin(brng)*Math.sin(d/R)*Math.cos(lat1), 
+//				 Math.cos(d/R)-Math.sin(lat1)*Math.sin(lat2));
+
+
+
+//var vector = 
+
+    contentString = "Status: " +
+	"\nspeed: " + report.speed +
+	"\nheading: " + report.heading +
+	"\nturn_rate: " + report.turn_rate +
+	"\nbattery: " + report.battery_status +
+	"\nactive: " + report.active +
+	"\noperative: " + report.operative +
+	"\nautopilot: " + report.autopilot;
+	
+
+    g.event.addListener(marker, 'mouseover', function() {
+	    infowindow.setContent(contentString);
+	    infowindow.open(map, marker);
+	});
+    
+    //g.event.addListener(marker, "mouseout", function() {
+    //	    marker.setIcon(imageNormal);
+    //    infoWindow.close()
+    //	});
+
+    return marker;
+}
+
+    
