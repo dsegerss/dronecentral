@@ -1,4 +1,4 @@
-application: dronecentral
+application: sonardronecentral
 version: 1
 runtime: python27
 api_version: 1
@@ -9,7 +9,7 @@ handlers:
   static_dir: js
 
 - url: /.*
-  script: dronecentral.application
+  script: sonardronecentral.application
 
 libraries:
 - name: webapp2

@@ -42,36 +42,42 @@
     <div id="msgRespons"></div>
     <div id="msgSent"></div>
     <div id='map-optionbar-r'>
-      Toggle waypoints<input id="showPath" name="showPath" type="checkbox"
+      Show waypoints<input id="showPath" name="showPath" type="checkbox"
 			     value="Show route"
-			     onClick="toggleWaypoints();" checked><br>
-      Toggle reportpoints<input id="showReports" name="showReports" type="checkbox"
+			     onClick="toggleWaypoints();" checked>
+      Reports<input id="showReports" name="showReports" type="checkbox"
 			     value="Show reports"
 			     onClick="toggleReportPoints();" checked><br>
     </div>
-    <span style="float:left;">
-      <form enctype="multipart/form-data" action="/" method="post" target="_blank">
-	<input type="hidden" name="do" value="upload-file" />
-        <input type="file" name="file" />
-        <input type="submit" value = "Upload file"/>
-      </form>
-    </span>
 
     <form action="/" method="post">
       <input type="hidden" name="do" value="upload-waypoints" />
       <input type="hidden" id="upload-waypoint-list" name="waypoint-list" value="" />
-      <div><input type="submit" value="Upload from waypoints" onclick="setUploadWaypoints()"></div>
+      <div><input type="submit" value="Upload wp from map" onclick="setUploadWaypoints()"></div>
     </form>
 
+    <span style="float:left;">
+      <form enctype="multipart/form-data" action="/" method="post" target="_blank">
+        <input type="submit" value = "Upload wp from file"/>
+	<input type="hidden" name="do" value="upload-file" />
+        <input type="file" name="file" />
+
+      </form>
+    </span><br><br>
+
+    <span style="float:left;">
     <form action="/" method="post">
       <input type="hidden" name="do" value="delete-waypoints" />
       <div><input type="submit" value="Delete waypoints"></div>
     </form>
-
+    </span>
+    <span>
     <form action="/" method="post">
       <input type="hidden" name="do" value="delete-reports" />
       <div><input type="submit" value="Delete reports"></div>
     </form>
+    </span>
+
 
     <H3> Send command </H3>
     <form action="/" method="post">
@@ -80,8 +86,10 @@
     </form>
     <form action="/" method="post">
       <input type="hidden" name="do" value="send-waypoints" />
-      <input type="hidden" id="send-waypoint-list" name="waypoint-list" value="" />
-      <div><input type="submit" value="Send waypoints" onclick="setSendWaypoints"></div>
+	<input type="hidden" id="send-waypoint-list" name="waypoint-list" value="" />
+      <div>
+	<input type="submit" value="Send waypoints" onclick="setSendWaypoints">
+      </div>
     </form>
     <form action="/" method="post">
       <input type="hidden" name="do" value="clear-waypoints" />
@@ -92,26 +100,29 @@
       <div><input type="submit" value="Send survey"></div>
     </form>
     <form action="/" method="post">
-      <input type="hidden" name="do" value="clear-survey" />
-      <div><input type="submit" value="Clear survey"></div>
-    </form>
-    <form action="/" method="post">
-      <input type="hidden" name="do" value="set-load" />      
-      <input type="text" name="load" id="load" onkeypress="validate_in_range('rudder-angle',{{min_load}},{{max_load}});"> ({{min_load}}-{{max_load}})
-      <div><input type="submit" value="Set load"></div>
+      <input type="hidden" name="do" value="set-load" />            
+      <div>
+	<input type="submit" value="Set load">
+	<input type="text" name="load" id="load" onkeypress="validate_in_range('rudder-angle',{{min_load}},{{max_load}});"> ({{min_load}}-{{max_load}})
+      </div>
     </form>
     <form action="/" method="post">
       <input type="hidden" name="do" value="set-rudder-angle" />      
-      <input type="text" name="rudder-angle" id="rudder-angle" onkeypress="validate_in_range('rudder-angle',{{min_rudder_angle}},{{max_rudder_angle}});"> ({{min_rudder_angle}} - {{max_rudder_angle}})
-      <div><input type="submit" value="Set rudder angle"></div>
+      <div>
+	<input type="submit" value="Set rudder angle">
+	<input type="text" name="rudder-angle" id="rudder-angle" onkeypress="validate_in_range('rudder-angle',{{min_rudder_angle}},{{max_rudder_angle}});"> ({{min_rudder_angle}} - {{max_rudder_angle}})
+      </div>
     </form>
     <form action="/" method="post">
-      <input type="hidden" name="do" value="inactivate" />
-      <input type="check-box" name="do" value="activate" onChange="this.form.submit()"/>
+      <input type="hidden" name="do" value="toggle-activate" />
+      <input type="checkbox" name="state" value="active" {{active_state}} onChange="this.form.submit()"/>Active<br>
+    <form action="/" method="post">
+      <input type="hidden" name="do" value="toggle-autopilot"/>
+      <input type="checkbox" name="state" value="autopilot" {{autopilot_state}} onChange="this.form.submit()"/>Autopilot<br>
     </form>
     <form action="/" method="post">
-      <input type="hidden" name="do" value="shutdown" />
-      <input type="check-box" name="do" value="operate" onChange="this.form.submit()"/>
+      <input type="hidden" name="do" value="toggle-operate" />
+      <input type="checkbox" name="state" value="operative" {{operate_state}} onChange="this.form.submit()"/>Operative<br>
     </form>
 
     <H5> {{command}}, {{response}}</H5> 
@@ -119,15 +130,16 @@
     <H3> Send report </H3>
     <form action="/" method="post">
       <input type="hidden" name="do" value="upload-report" />
-      Battery status: <input type="text" name="battery_status" size=3 value="-1">
-      Turn-rate: <input type="text" name="turn_rate" size=3 value="-1">
+      Operative: <input type="text" name="operative" size=3 value="0">
+      Active: <input type="text" name="active" value="0" size=8>
+      Autopilot: <input type="text" name="autopilot" value="0" size=8>
+      Turn-rate: <input type="text" name="turn_rate" size=3 value="0">
       Heading: <input type="text" name="heading" size=3 value="90">
       Speed: <input type="text" name="speed" size=3 value="2">
       Lat:  <input type="text" name="lat" size=8 value="58.2">
       Lon:  <input type="text" name="lon" size=8 value="15.658">
       Current waypoint: <input type="text" name="current_waypoint" size=8 value="-1">
-      Autopilot: <input type="text" name="autopilot" value="-1" size=8>
-      Active: <input type="text" name="active" value="-1" size=8>
+      Battery status: <input type="text" name="battery_status" size=3 value="-1">
       <div><input type="submit" value="Upload report"></div>
     </form>
     {% autoescape off %}

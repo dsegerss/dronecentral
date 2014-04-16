@@ -43,6 +43,7 @@ class Device(db.Model):
 
 class StatusReport(db.Model):
     """Models a drone status report"""
+    operative = db.BooleanProperty(indexed=False)
     active = db.BooleanProperty(indexed=False)
     autopilot = db.BooleanProperty(indexed=False)
     current_waypoint = db.IntegerProperty(indexed=False)
@@ -84,11 +85,14 @@ class SendMessage(webapp2.RequestHandler):
 def get_device_id():
     dev_query = Device.all()
     devices = dev_query.fetch(1)
-    return devices[0].device_id
+    if len(devices) > 0:
+        return devices[0].device_id
+    else:
+        return None
 
 
 def getReports():
-    report_query = StatusReport.all()
+    report_query = StatusReport.all().order('-reportTime')
     reports = report_query.ancestor(
         survey_key(DEFAULT_SURVEY_NAME)).fetch(10)  # get 10 last reports
 
@@ -120,12 +124,31 @@ class RegisterDevice(webapp2.RequestHandler):
 
 class MainPage(webapp2.RequestHandler):
 
-    def render(self, command="", response="", alert=""):
+    def render(self, command="", response="", alert="", values=None):
         """Write main page"""
+
+        reports = getReports()
+        active = ''
+        operative = ''
+        autopilot = ''
+
+        if len(reports) > 0:
+            last_report = reports[0]
+            if last_report.active:
+                active = 'checked'
+
+            if last_report.operative:
+                operative = 'checked'
+
+            if last_report.autopilot:
+                autopilot = 'checked'
+
+        logging.info("render active: " + active)
+
         template_values = {
             'google_api_key': GOOGLE_API_KEY,
             'waypoints': getWaypoints(),
-            'reports': getReports(),
+            'reports': reports,
             'command': command,
             'response': response,
             'min_rudder_angle': MIN_RUDDER_ANGLE,
@@ -133,7 +156,14 @@ class MainPage(webapp2.RequestHandler):
             'min_load': MIN_LOAD,
             'max_load': MAX_LOAD,
             'alert': alert,
+            'autopilot_state': autopilot,
+            'operate_state': operative,
+            'active_state': active
         }
+
+        if values is not None:
+            for key, val in values.iteritems():
+                template_values[key] = val
 
         template = JINJA_ENVIRONMENT.get_template('index.html')
         return template.render(template_values)
@@ -192,9 +222,18 @@ class MainPage(webapp2.RequestHandler):
     def upload_report(self):
         survey_name = self.request.get('survey_name',
                                        DEFAULT_SURVEY_NAME)
+
+        logging.info("Operative = " +
+                      self.request.get('operative', '0').lower())
+        logging.info("Active = " +
+                      self.request.get('active', '0').lower())
+        logging.info("Autopilot = " +
+                      self.request.get('autopilot', '0').lower())
+
         report = StatusReport(
-            autopilot=self.request.get('autopilot', 'true').lower() == '1',
-            active=self.request.get('active', 'true').lower() == '1',
+            operative=self.request.get('operative', '0').lower() == '1',
+            autopilot=self.request.get('autopilot', '0').lower() == '1',
+            active=self.request.get('active', '0').lower() == '1',
             current_waypoint=int(float(self.request.get('cwp', -1))),
             speed=float(self.request.get('speed', -1)),
             heading=float(self.request.get('heading', -1)),
@@ -206,23 +245,35 @@ class MainPage(webapp2.RequestHandler):
 
         report.put()
         logging.info("Saved report to db")
+
         self.response.write(
             self.render(
-                alert='<script> alert("Saved report wp to db");</script>'))
+                alert='<script> alert("Saved report wp to db");</script>'),)
 
-    def send_message(self, cmd, val, collapse_key=None):
+    def send_message(self, cmd, val='', collapse_key=None):
         """ Send message using GCM and wait for feedback"""
+
+        device_id = get_device_id()
+        logging.info("Device is: " + str(device_id))
+        if device_id is None:
+            logging.info("opening alert")
+            self.response.write(
+                self.render(
+                    alert='<script> alert("Could not ' +
+                    'send message  - No device registered");</script>')
+                )
+            return
 
         if collapse_key is not None:
             request = (
                 "collapse_key=%s&registration_id=%i&command=%s&value=%s" % (
                     collapse_key,
-                    get_device_id(),
+                    device_id,
                     cmd,
                     val))
         else:
             request = "registration_id=%i&command=%s&value=%s" % (
-                get_device_id(),
+                device_id,
                 cmd,
                 val)
 
@@ -236,8 +287,8 @@ class MainPage(webapp2.RequestHandler):
                      'Authorization': 'key=' + GOOGLE_API_KEY}
             )
 
-        logging.info("Status is %i" % response.status_code)
-        logging.info("Response is %s" % response.content)
+        logging.debug("Status is %i" % response.status_code)
+        logging.debug("Response is %s" % response.content)
         if response.status_code == 200:
             self.render()
 #            self.render(command=cmd, response=result.content,
@@ -287,37 +338,70 @@ class MainPage(webapp2.RequestHandler):
 
         elif do == 'send-waypoints':
             logging.info('do==send-waypoints')
-            self.send_message('ADD-WP', self.request.get('value', ""))
-
-        elif do == 'clear-waypoints':
-            logging.info('do==clear-waypoints')
-            self.send_message('CLEAR-WP', "")
+            self.send_message('ADD_WP', self.request.get('value', ""))
 
         elif do == 'send-survey':
             logging.info('do==send-survey')
             survey = self.get_survey()
             if survey != []:
-                self.send_message('ADD-WP', )
-
-        elif do == 'clear-survey':
-            logging.info('do==clear-survey')
-            self.send_message('CLEAR-SURVEY', "")
+                self.send_message('ADD_SURVEY', self.request.get('value', ""))
 
         elif do == 'get-status':
             logging.info('do==get-status')
-            self.send_message('GET-STATUS', '', 'GET-STATUS')
+            self.send_message('GET_STATUS', collapse_key='GET_STATUS')
 
         elif do == 'set-load':
             logging.info('do==set-load')
             load = self.request.get('value', None)
             if num_in_range(load, MIN_LOAD, MAX_LOAD):
-                self.send_message('SET-LOAD', load)
+                self.send_message('SET_LOAD', load)
 
         elif do == 'set-rudder-angle':
             logging.info('do==set-rudder-angle')
             angle = self.request.get('value', None)
             if num_in_range(angle, MIN_RUDDER_ANGLE, MAX_RUDDER_ANGLE):
-                self.send_message('SET-RUDDER', angle)
+                self.send_message('SET_RUDDER', angle)
+
+        elif do == 'shutdown':
+            logging.info('do==shutdown')
+            self.send_message('SHUTDOWN')
+
+        elif do == 'start-motor':
+            logging.info('do==start-motor')
+            self.send_message('START_MOTOR')
+
+        elif do == 'stop-motor':
+            logging.info('do==stop-motor')
+            self.send_message('STOP_MOTOR')
+
+        elif do == 'stop-motor':
+            logging.info('do==stop-motor')
+            self.send_message('STOP_MOTOR')
+
+        elif do == 'toggle-activate':
+            logging.info('do==toggle-activate')
+            state = self.request.get('state')
+            if state == "yes":
+                self.send_message('ACTIVATE')
+            else:
+                self.send_message('DEACTIVATE')
+
+        elif do == 'toggle-operate':
+            logging.info('do==toggle-operate')
+            state = self.request.get('state')
+            if state == "yes":
+                self.send_message('OPERATE')
+            else:
+                self.send_message("SHUTDOWN")
+
+        elif do == 'toggle-autopilot':
+            logging.info('do==toggle-autopilot')
+            state = self.request.get('state')
+            if state == "yes":
+
+                self.send_message('AUTOPILOT')
+            else:
+                self.send_message('MANUAL')
 
 
 application = webapp2.WSGIApplication(
